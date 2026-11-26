@@ -1,0 +1,48 @@
+name: Discover Cybersecurity GitHub Projects
+
+on:
+  schedule:
+    - cron: '17 1,13 * * *'
+  workflow_dispatch:
+    inputs:
+      test_mode:
+        description: 'Post one test project without updating history'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cyber-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Discover and post projects
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEST_MODE: ${{ inputs.test_mode }}
+        run: python cyber_discovery.py
+      - name: Save posted repository history
+        if: success() && inputs.test_mode != true
+        run: |
+          if [ -f posted_repos.json ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add posted_repos.json
+            if ! git diff --cached --quiet; then
+              git commit -m 'Update posted cybersecurity repositories'
+              git push
+            fi
+          fi
